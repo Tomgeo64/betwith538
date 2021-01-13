@@ -21,7 +21,7 @@ def make_odds_list(sport_key):
     odds_response = requests.get('https://api.the-odds-api.com/v3/odds', params={
         'api_key': api_key,
         'sport': sport_key,
-        'region': 'uk',  # uk | us | eu | au
+        'region': 'us',  # uk | us | eu | au
         'mkt': 'h2h',  # h2h | spreads | totals
         'oddsFormat': 'decimal',
         'dateFormat': 'iso'
@@ -126,7 +126,7 @@ def do_sport(sport_key):
         if x[2] == -100:  # broken predictions
             print(x)
     evdf = DataFrame(ev_list, columns=['teams','site','EV','outcome','win538','bookie%','date'])
-    result = evdf.sort_values(['EV'], ascending=False)
+    result = evdf.sort_values(['EV'], ascending=False, ignore_index=True)
     return result
 
 
@@ -277,7 +277,7 @@ def update_538():
     urllib.request.urlretrieve("https://projects.fivethirtyeight.com/soccer-api/club/spi_matches_latest.csv", "spi_matches_latest.csv")
     print("Done downloading from 538")
 
-many_sports('soccerEVs')
+many_sports('usSoccerEV.xlsx')
 
 
 
