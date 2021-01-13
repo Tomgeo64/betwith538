@@ -37,7 +37,7 @@ def make_odds_list(sport_key):
     odds_response = requests.get('https://api.the-odds-api.com/v3/odds', params={
         'api_key': api_key,
         'sport': sport_key,
-        'region': 'uk',  # uk | us | eu | au
+        'region': 'us',  # uk | us | eu | au
         'mkt': 'h2h',  # h2h | spreads | totals
         'oddsFormat': 'decimal',
         'dateFormat': 'iso'
@@ -151,32 +151,6 @@ def simple_xl(result):
     print("printed to xl")
 
 
-def drop_redundancy(df):
-    prevHome = ''
-    bestEV = -100
-    print("before loop")
-    newdf = df.copy()
-    for x in range(len(df)):
-        currHome = df['teams'][x][0]
-        if prevHome != currHome:
-            print("Drop should happen now!")
-            print(prevHome)
-            print(currHome)
-            print(bestEV)
-            print("************")
-
-            newdf = newdf.drop(newdf[(newdf.teams[0] == prevHome) & (newdf.EV < bestEV)].index)
-            # newdf = newdf.drop(newdf[(newdf['teams'][0] == prevHome) & (newdf['EV'] < bestEV)].index)
-            bestEV = -100
-            print(newdf.shape)
-        currEV = df['EV'][x]
-        if currEV > bestEV:
-            bestEV = currEV
-        prevHome = df['teams'][x][0]
-    print(newdf)
-    return newdf
-
-
 def get_ev(win538, odds):
     if odds is None:
         return 0
@@ -208,7 +182,7 @@ def many_sports():
     df19= (do_sport('soccer_switzerland_superleague'))
     df20 = (do_sport('soccer_turkey_super_league'))
 
-    with pd.ExcelWriter('bigMany.xlsx') as writer:
+    with pd.ExcelWriter('bigManyUSA.xlsx') as writer:
         df1.to_excel(writer, sheet_name='epl')
         df2.to_excel(writer, sheet_name='australia1')
         df3.to_excel(writer, sheet_name='brazil')
@@ -329,30 +303,6 @@ def fix_538(team):
     else:
         return team
 
-
-
-def test_things():
-   odds_list = make_odds_list("soccer_epl")
-   teams = ['Liverpool', 'Burnley']
-
-# def run_outcome(odds_list, win538):
-#     ev_list = []
-#     for y in odds_list:
-#         ev = win538*odds_list[1] + (1-win538)*-100
-#         ev_list.append(y[0],ev)
-#     name , highest = "shite", 0
-#     for x in ev_list:
-#         if x[1] > highest:
-#             name, highest = x
-#     print(name, highest)
-
-#make_odds_list()
-# print(get_538_odds('Sheffield United', 'Tottenham Hotspur', 0))
-
-#any_sports()
-
-
-#simple_xl(do_sport('soccer_epl'))
 
 many_sports()
 
