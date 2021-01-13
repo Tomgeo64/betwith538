@@ -3,6 +3,11 @@ import json
 import pandas as pd
 from pandas import DataFrame
 from openpyxl import Workbook
+from urllib.request import urlopen
+from zipfile import ZipFile
+import csv
+import urllib
+import urllib.request
 
 
 def make_odds_list(sport_key):
@@ -160,6 +165,7 @@ def get_ev(win538, odds):
 
 
 def many_sports():
+    update_538()
     df1 = do_sport('soccer_epl')
     df2 = (do_sport('soccer_australia_aleague'))
     df3 = (do_sport('soccer_brazil_campeonato'))
@@ -304,7 +310,11 @@ def fix_538(team):
         return team
 
 
-many_sports()
+def update_538():
+    urllib.request.urlretrieve("https://projects.fivethirtyeight.com/soccer-api/club/spi_matches_latest.csv", "spi_matches_latest.csv")
+    print("Done downloading from 538")
+
+update_538()
 
 
 
