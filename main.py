@@ -131,7 +131,7 @@ def do_sport(sport_key):
 
 
 def simple_xl(result):
-    result.to_excel('fixedNames.xlsx')
+    result.to_excel('simple.xlsx')
     print("printed to xl")
 
 
@@ -143,10 +143,10 @@ def get_ev(win538, odds):
     return (win538 * odds * 100) - 100
 
 
-def many_sports():
+def many_sports(filename):
     update_538()
     soccerList = get_in_season_soccer()
-    with pd.ExcelWriter('ukSoccer.xlsx') as writer:
+    with pd.ExcelWriter(filename) as writer:
         for x in soccerList:
             table = do_sport(x)
             table.to_excel(writer, sheet_name=x)
@@ -277,7 +277,7 @@ def update_538():
     urllib.request.urlretrieve("https://projects.fivethirtyeight.com/soccer-api/club/spi_matches_latest.csv", "spi_matches_latest.csv")
     print("Done downloading from 538")
 
-many_sports()
+many_sports('soccerEVs')
 
 
 
