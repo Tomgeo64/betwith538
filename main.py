@@ -2,21 +2,13 @@ import requests
 import json
 import pandas as pd
 from pandas import DataFrame
-from openpyxl import Workbook
 from urllib.request import urlopen
-from zipfile import ZipFile
-import csv
 import urllib
 import urllib.request
 
+api_key = '4e643cb3d36ffff4a2d6d7c6a4e78771'
 
 def make_odds_list(sport_key):
-    # An api key is emailed to you when you sign up to a plan
-    api_key = '4e643cb3d36ffff4a2d6d7c6a4e78771'
-
-    # To get odds for a specific sport, use the sport key from the last request
-    #   or set sport to "upcoming" to see live and upcoming across all sports
-
 
     odds_response = requests.get('https://api.the-odds-api.com/v3/odds', params={
         'api_key': api_key,
@@ -35,9 +27,6 @@ def make_odds_list(sport_key):
         )
 
     else:
-        # odds_json['data'] contains a list of live and
-        #   upcoming events and odds for different bookmakers.
-        # Events are ordered by start time (live events are first)
         print()
         print(
             'Successfully got {} events'.format(len(odds_json['data'])),
@@ -48,9 +37,8 @@ def make_odds_list(sport_key):
             team1 = match['home_team']
             sitesList = match['sites']  # List of betting sites
             date = match['commence_time']
-            bestOdds = 0
             for x in sitesList:
-
+                # Move home team into first slot to match 538. Odds must be moved as well.
                 if match['home_team'] == match['teams'][1]:
                     team2 = match['teams'][0]
                     odds = x['odds']
@@ -62,25 +50,26 @@ def make_odds_list(sport_key):
                     odds = x['odds']
                 teams = team1, team2
                 name = x['site_key']
+                # Grab the things I care about.
                 odds_list.append([teams, name, odds, date])
-        # for x in odds_json['data']:
-        #     print(x)
-        # Check your usage
 
+        # Check your usage
         print()
         print('Remaining requests', odds_response.headers['x-requests-remaining'])
         print('Used requests', odds_response.headers['x-requests-used'])
+
         return odds_list
 
 
 def get_538_odds(team1, team2, winner):
-    # Get odds given 2 teams, winner 1 means team 1 wins, 0 means draw, 2 means team 2
+    # Get odds given 2 teams, winner means outcome
     df = pd.read_csv('spi_matches_latest.csv')
-    dfcut = df[['team1', 'team2', 'prob1', 'prob2', 'probtie', 'date']]
+    dfcut = df[['team1', 'team2', 'prob1', 'prob2', 'probtie']]
+    # Run dictionary on team names to make them readable.
     newteam1 = fix_538(team1)
     newteam2 = fix_538(team2)
+    # Grab only rows with correct teams.
     rows = dfcut.loc[(dfcut['team1'] == newteam1) & (dfcut['team2'] == newteam2)]
-
     if rows.empty:
         print("STILL EMPTY")  # this means somebodies name is broken and needs to be added to dictionary
         return 0
@@ -97,35 +86,29 @@ def do_sport(sport_key):
     ev_list = []
     for x in odds_list:
         team1, team2 = x[0]
+        # Grab odds from 528 csv
         win5381 = get_538_odds(team1, team2, 1)
         win5382 = get_538_odds(team1, team2, 2)
-        if len(x[2]['h2h']) == 3:
+        if len(x[2]['h2h']) == 3:  # If ties are possible
             win5380 = get_538_odds(team1, team2, 0)
             ev0 = get_ev(win5380, x[2]['h2h'][2])
-
             ev_list.append([x[0], x[1], ev0, 0, win5380, x[2]['h2h'][2], x[3]])
 
+        # Use the 2 variables to calculate EV
         ev1 = get_ev(win5381, x[2]['h2h'][0])
         ev2 = get_ev(win5382, x[2]['h2h'][1])
-
-        ev_list.append([x[0], x[1], ev1, 1, win5381, x[2]['h2h'][0], x[3]])  # 1 is outcome, 1 = team 1 wins.
+        # Make list of format (teams, site, EV, outcome, 538chance, bookie%, date)
+        # outcome: 1 = team 1 wins. 2 = team 2 wins. 0 = draw.
+        ev_list.append([x[0], x[1], ev1, 1, win5381, x[2]['h2h'][0], x[3]])
         ev_list.append([x[0], x[1], ev2, 2, win5382, x[2]['h2h'][1], x[3]])
-
-        # if team1 == 'Sheffield United':
-        #     print(team2)
-        #     print(ev1)
-        #     print(win5381)
-        #     print(x[2]['h2h'][0])
-        #     print(x[2]['h2h'][1])
-        #     # print(x[2]['h2h'][2])
     highest = 0
     for x in ev_list:
-        if(x[2]>highest):
+        if x[2] > highest:
             highest = x[2]
             best = x
         if x[2] == -100:  # broken predictions
             print(x)
-    evdf = DataFrame(ev_list, columns=['teams','site','EV','outcome','win538','bookie%','date'])
+    evdf = DataFrame(ev_list, columns=['teams', 'site', 'EV', 'outcome', 'win538', 'bookie%', 'date'])
     result = evdf.sort_values(['EV'], ascending=False, ignore_index=True)
     return result
 
@@ -140,6 +123,7 @@ def get_ev(win538, odds):
         return 0
     if win538 is None:
         return 0
+    # Basically % return on bet, or expected return for $100 bet. Same thing.
     return (win538 * odds * 100) - 100
 
 
@@ -151,7 +135,9 @@ def many_sports(filename):
             table = do_sport(x)
             table.to_excel(writer, sheet_name=x)
 
+
 def fix_538(team):
+    # There appears to no rhyme or reason for how 528, or the bookies name their teams. So we use this.
     translateTo538 = {
         "Besiktas JK": 'Besiktas',
         'Çaykur Rizespor': 'Caykur Rizespor',
@@ -252,9 +238,7 @@ def fix_538(team):
 
 
 def get_in_season_soccer():
-    api_key = '4e643cb3d36ffff4a2d6d7c6a4e78771'
-
-    # First get a list of in-season sports
+    # Get all in season soccer
     sports_response = requests.get('https://api.the-odds-api.com/v3/sports', params={
         'api_key': api_key
     })
@@ -273,9 +257,11 @@ def get_in_season_soccer():
     print(soccer_list)
     return soccer_list
 
+
 def update_538():
     urllib.request.urlretrieve("https://projects.fivethirtyeight.com/soccer-api/club/spi_matches_latest.csv", "spi_matches_latest.csv")
     print("Done downloading from 538")
+
 
 many_sports('usSoccerEV.xlsx')
 
