@@ -14,27 +14,6 @@ def make_odds_list(sport_key):
     # An api key is emailed to you when you sign up to a plan
     api_key = '4e643cb3d36ffff4a2d6d7c6a4e78771'
 
-    # First get a list of in-season sports
-    sports_response = requests.get('https://api.the-odds-api.com/v3/sports', params={
-        'api_key': api_key
-    })
-    sports_json = json.loads(sports_response.text)
-
-    if not sports_json['success']:
-        print(
-            'There was a problem with the sports request:',
-            sports_json['msg']
-        )
-
-    else:
-        print()
-        print(
-            'Successfully got {} sports'.format(len(sports_json['data'])),
-            'Here\'s the first sport:'
-        )
-        print(sports_json['data'][0])
-
-
     # To get odds for a specific sport, use the sport key from the last request
     #   or set sport to "upcoming" to see live and upcoming across all sports
 
@@ -42,7 +21,7 @@ def make_odds_list(sport_key):
     odds_response = requests.get('https://api.the-odds-api.com/v3/odds', params={
         'api_key': api_key,
         'sport': sport_key,
-        'region': 'us',  # uk | us | eu | au
+        'region': 'uk',  # uk | us | eu | au
         'mkt': 'h2h',  # h2h | spreads | totals
         'oddsFormat': 'decimal',
         'dateFormat': 'iso'
@@ -62,15 +41,16 @@ def make_odds_list(sport_key):
         print()
         print(
             'Successfully got {} events'.format(len(odds_json['data'])),
-            'Here\'s the first event:'
+            'From:'+ sport_key
         )
         odds_list = []
         for match in odds_json['data']:
             team1 = match['home_team']
             sitesList = match['sites']  # List of betting sites
-
+            date = match['commence_time']
             bestOdds = 0
             for x in sitesList:
+
                 if match['home_team'] == match['teams'][1]:
                     team2 = match['teams'][0]
                     odds = x['odds']
@@ -82,7 +62,7 @@ def make_odds_list(sport_key):
                     odds = x['odds']
                 teams = team1, team2
                 name = x['site_key']
-                odds_list.append([teams, name, odds])
+                odds_list.append([teams, name, odds, date])
         # for x in odds_json['data']:
         #     print(x)
         # Check your usage
@@ -96,13 +76,13 @@ def make_odds_list(sport_key):
 def get_538_odds(team1, team2, winner):
     # Get odds given 2 teams, winner 1 means team 1 wins, 0 means draw, 2 means team 2
     df = pd.read_csv('spi_matches_latest.csv')
-    dfcut = df[['team1','team2','prob1', 'prob2', 'probtie']]
+    dfcut = df[['team1', 'team2', 'prob1', 'prob2', 'probtie', 'date']]
     newteam1 = fix_538(team1)
     newteam2 = fix_538(team2)
     rows = dfcut.loc[(dfcut['team1'] == newteam1) & (dfcut['team2'] == newteam2)]
 
     if rows.empty:
-        print("STILL EMPTY")
+        print("STILL EMPTY")  # this means somebodies name is broken and needs to be added to dictionary
         return 0
     if winner == 1:
         return rows.iloc[0]['prob1']
@@ -115,22 +95,21 @@ def get_538_odds(team1, team2, winner):
 def do_sport(sport_key):
     odds_list = make_odds_list(sport_key)
     ev_list = []
-    bestList = []
     for x in odds_list:
         team1, team2 = x[0]
-
         win5381 = get_538_odds(team1, team2, 1)
         win5382 = get_538_odds(team1, team2, 2)
         if len(x[2]['h2h']) == 3:
             win5380 = get_538_odds(team1, team2, 0)
             ev0 = get_ev(win5380, x[2]['h2h'][2])
-            ev_list.append([x[0], x[1], ev0, 0, win5380, x[2]['h2h'][2]])
+
+            ev_list.append([x[0], x[1], ev0, 0, win5380, x[2]['h2h'][2], x[3]])
 
         ev1 = get_ev(win5381, x[2]['h2h'][0])
         ev2 = get_ev(win5382, x[2]['h2h'][1])
 
-        ev_list.append([x[0], x[1], ev1, 1, win5381, x[2]['h2h'][0]])  # 1 is outcome, 1 = team 1 wins.
-        ev_list.append([x[0], x[1], ev2, 2, win5382, x[2]['h2h'][1]])
+        ev_list.append([x[0], x[1], ev1, 1, win5381, x[2]['h2h'][0], x[3]])  # 1 is outcome, 1 = team 1 wins.
+        ev_list.append([x[0], x[1], ev2, 2, win5382, x[2]['h2h'][1], x[3]])
 
         # if team1 == 'Sheffield United':
         #     print(team2)
@@ -146,7 +125,7 @@ def do_sport(sport_key):
             best = x
         if x[2] == -100:  # broken predictions
             print(x)
-    evdf = DataFrame(ev_list, columns=['teams','site','EV','outcome','win538','bookie%'])
+    evdf = DataFrame(ev_list, columns=['teams','site','EV','outcome','win538','bookie%','date'])
     result = evdf.sort_values(['EV'], ascending=False)
     return result
 
@@ -166,49 +145,11 @@ def get_ev(win538, odds):
 
 def many_sports():
     update_538()
-    df1 = do_sport('soccer_epl')
-    df2 = (do_sport('soccer_australia_aleague'))
-    df3 = (do_sport('soccer_brazil_campeonato'))
-    df4 = (do_sport('soccer_denmark_superliga'))
-    df5 = (do_sport('soccer_efl_champ'))
-    df6 = (do_sport('soccer_england_league1'))
-    df7 = (do_sport('soccer_england_league2'))
-    df8 = (do_sport('soccer_france_ligue_one'))
-    df9 = (do_sport('soccer_france_ligue_two'))
-    df10 = (do_sport('soccer_germany_bundesliga'))
-    df11 = (do_sport('soccer_germany_bundesliga2'))
-    df12 = (do_sport('soccer_italy_serie_a'))
-    # df11 = (do_sport('soccer_italy_serie_b'))
-    df13 = (do_sport('soccer_mexico_ligamx'))
-    df14 = (do_sport('soccer_netherlands_eredivisie'))
-    df15= (do_sport('soccer_portugal_primeira_liga'))
-    df16= (do_sport('soccer_russia_premier_league'))
-    df17= (do_sport('soccer_spain_la_liga'))
-    df18= (do_sport('soccer_spl'))
-    df19= (do_sport('soccer_switzerland_superleague'))
-    df20 = (do_sport('soccer_turkey_super_league'))
-
-    with pd.ExcelWriter('bigManyUSA.xlsx') as writer:
-        df1.to_excel(writer, sheet_name='epl')
-        df2.to_excel(writer, sheet_name='australia1')
-        df3.to_excel(writer, sheet_name='brazil')
-        df4.to_excel(writer, sheet_name='denmark')
-        df5.to_excel(writer, sheet_name='efl champ')
-        df6.to_excel(writer, sheet_name='england1')
-        df7.to_excel(writer, sheet_name='england2')
-        df8.to_excel(writer, sheet_name='france1')
-        df9.to_excel(writer, sheet_name='france2')
-        df10.to_excel(writer, sheet_name='germany1')
-        df11.to_excel(writer, sheet_name='germany2')
-        df12.to_excel(writer, sheet_name='italy1')
-        df13.to_excel(writer, sheet_name='mexico')
-        df14.to_excel(writer, sheet_name='netherlands')
-        df15.to_excel(writer, sheet_name='portugal')
-        df16.to_excel(writer, sheet_name='russia')
-        df17.to_excel(writer, sheet_name='spain')
-        df18.to_excel(writer, sheet_name='spl')
-        df19.to_excel(writer, sheet_name='switz')
-        df20.to_excel(writer, sheet_name='turkey')
+    soccerList = get_in_season_soccer()
+    with pd.ExcelWriter('ukSoccer.xlsx') as writer:
+        for x in soccerList:
+            table = do_sport(x)
+            table.to_excel(writer, sheet_name=x)
 
 def fix_538(team):
     translateTo538 = {
@@ -310,11 +251,33 @@ def fix_538(team):
         return team
 
 
+def get_in_season_soccer():
+    api_key = '4e643cb3d36ffff4a2d6d7c6a4e78771'
+
+    # First get a list of in-season sports
+    sports_response = requests.get('https://api.the-odds-api.com/v3/sports', params={
+        'api_key': api_key
+    })
+    sports_json = json.loads(sports_response.text)
+
+    if not sports_json['success']:
+        print(
+            'There was a problem with the sports request:',
+            sports_json['msg']
+        )
+
+    soccer_list = []
+    for sport in sports_json['data']:
+        if 'soccer' in sport['key']:
+            soccer_list.append(sport['key'])
+    print(soccer_list)
+    return soccer_list
+
 def update_538():
     urllib.request.urlretrieve("https://projects.fivethirtyeight.com/soccer-api/club/spi_matches_latest.csv", "spi_matches_latest.csv")
     print("Done downloading from 538")
 
-update_538()
+many_sports()
 
 
 
