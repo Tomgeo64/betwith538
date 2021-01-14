@@ -5,15 +5,22 @@ from pandas import DataFrame
 from urllib.request import urlopen
 import urllib
 import urllib.request
+from fix538 import fix_538
+from datetime import datetime
+import dateutil.parser
+import pytz
+import numpy as np
+from datetime import datetime, timedelta
 
-api_key = '4e643cb3d36ffff4a2d6d7c6a4e78771'
 
-def make_odds_list(sport_key):
+api_key = 'cc944894e170db9a6e45dde9536cf4c0'
+
+def make_odds_list(sport_key, region):
 
     odds_response = requests.get('https://api.the-odds-api.com/v3/odds', params={
         'api_key': api_key,
         'sport': sport_key,
-        'region': 'us',  # uk | us | eu | au
+        'region': region,  # uk | us | eu | au
         'mkt': 'h2h',  # h2h | spreads | totals
         'oddsFormat': 'decimal',
         'dateFormat': 'iso'
@@ -30,7 +37,7 @@ def make_odds_list(sport_key):
         print()
         print(
             'Successfully got {} events'.format(len(odds_json['data'])),
-            'From:'+ sport_key
+            'From:' + sport_key
         )
         odds_list = []
         for match in odds_json['data']:
@@ -71,7 +78,7 @@ def get_538_odds(team1, team2, winner):
     # Grab only rows with correct teams.
     rows = dfcut.loc[(dfcut['team1'] == newteam1) & (dfcut['team2'] == newteam2)]
     if rows.empty:
-        print("STILL EMPTY")  # this means somebodies name is broken and needs to be added to dictionary
+        # print("STILL EMPTY")  # this means somebodies name is broken and needs to be added to dictionary
         return 0
     if winner == 1:
         return rows.iloc[0]['prob1']
@@ -81,8 +88,8 @@ def get_538_odds(team1, team2, winner):
         return rows.iloc[0]['probtie']
 
 
-def do_sport(sport_key):
-    odds_list = make_odds_list(sport_key)
+def do_sport(sport_key, region):
+    odds_list = make_odds_list(sport_key, region)
     ev_list = []
     for x in odds_list:
         team1, team2 = x[0]
@@ -108,8 +115,9 @@ def do_sport(sport_key):
             best = x
         if x[2] == -100:  # broken predictions
             print(x)
-    evdf = DataFrame(ev_list, columns=['teams', 'site', 'EV', 'outcome', 'win538', 'bookie%', 'date'])
-    result = evdf.sort_values(['EV'], ascending=False, ignore_index=True)
+            count = 1
+    evdf = DataFrame(ev_list, columns=['teams', 'site', 'ev', 'outcome', 'win538', 'bookie%', 'date'])
+    result = evdf.sort_values(['ev'], ascending=False, ignore_index=True)  # Sort
     return result
 
 
@@ -127,114 +135,39 @@ def get_ev(win538, odds):
     return (win538 * odds * 100) - 100
 
 
-def many_sports(filename):
+def many_sports(filename, minEv, region, maxPerEvent, maxLeagues, days, singleSheet):
     update_538()
     soccerList = get_in_season_soccer()
+    maxCount = -1
+    curRow = 0
     with pd.ExcelWriter(filename) as writer:
         for x in soccerList:
-            table = do_sport(x)
-            table.to_excel(writer, sheet_name=x)
+            if maxCount >= maxLeagues:
+                return
+            maxCount = maxCount + 1
+            table = do_sport(x, region)
+            minTable = exclude_in_progress(table, days)
 
-
-def fix_538(team):
-    # There appears to no rhyme or reason for how 528, or the bookies name their teams. So we use this.
-    translateTo538 = {
-        "Besiktas JK": 'Besiktas',
-        'Çaykur Rizespor': 'Caykur Rizespor',
-        'Basaksehir': 'Istanbul Basaksehir',
-        'Gazişehir Gaziantep': 'Gazisehir Gaziantep',
-        'Torku Konyaspor': 'Konyaspor',
-        'Dundee United': 'Dundee Utd',
-        'Atlético Madrid': 'Atletico Madrid',
-        'Elche CF': 'Elche',
-        'CA Osasuna': 'Osasuna',
-        'Cádiz CF': 'Cadiz',
-        'Huesca': 'SD Huesca',
-        'Valladolid': 'Real Valladolid',
-        'Granada CF': 'Granada',
-        'Sevilla': 'Sevilla FC',
-        'FK Sochi': 'Sochi',
-        'Tambov': 'FC Tambov',
-        'FC Rotor Volgograd': 'FK Volgograd',
-        'FK Rostov': 'Rostov',
-        'FC Akhmat Grozny': 'Terek Grozny',
-        'Nacional': 'C.D. Nacional',
-        'CS Maritimo': 'Maritimo',
-        'Famalicão': 'Famalicao',
-        'Boavista Porto': 'Boavista',
-        'Pacos de Ferreira': 'Pacos Ferreira',
-        'Sporting Lisbon': 'Sporting CP',
-        'Groningen': 'FC Groningen',
-        'FC Twente Enschede': 'FC Twente',
-        'RKC Waalwijk': 'RKC',
-        'AZ Alkmaar': 'AZ',
-        'Heracles Almelo': 'Heracles',
-        'FC Zwolle': 'PEC Zwolle',
-        'Sparta Rotterdam': 'Sparta',
-        'FC Emmen': 'Emmen',
-        'PSV Eindhoven': 'PSV',
-        'Tigres': 'Tigres UANL',
-        'Pumas': 'Pumas Unam',
-        'América': 'Club América',
-        'Hellas Verona FC': 'Verona',
-        'Atalanta BC': 'Atalanta',
-        'FC Internazionale': 'Internazionale',
-        'Hamburger SV': 'Hamburg SV',
-        '1. FC Heidenheim': '1. FC Heidenheim 1846',
-        'Darmstadt 98': 'SV Darmstadt 98',
-        'FC Würzburger Kickers': 'Würzburger Kickers',
-        'Greuther Fürth': 'SpVgg Greuther Fürth',
-        'Augsburg': 'FC Augsburg',
-        'Union Berlin': '1. FC Union Berlin',
-        'FC Koln': 'FC Cologne',
-        'FSV Mainz 05': 'Mainz',
-        'Rodez AF': 'Rodez',
-        'USL Dunkerque': 'Dunkerque',
-        'EA Guingamp': 'Guingamp',
-        'FC Chambly': 'Chambly Thelle FC',
-        'Châteauroux': 'Chateauroux',
-        'SM Caen': 'Caen',
-        'Saint Etienne': 'St Etienne',
-        'Rennes': 'Stade Rennes',
-        'Nîmes Olympique': 'Nimes',
-        'Stade de Reims': 'Reims',
-        'Dijon': 'Dijon FCO',
-        'RC Lens': 'Lens',
-        'Paris Saint Germain': 'Paris Saint-Germain',
-        'Bolton Wanderers': 'Bolton',
-        'Scunthorpe United': 'Scunthorpe',
-        'Wigan Athletic': 'Wigan',
-        'Birmingham City': 'Birmingham',
-        'Blackburn Rovers': 'Blackburn',
-        'Bournemouth': 'AFC Bournemouth',
-        'Brondby IF': 'Brondby',
-        'SonderjyskE': 'Sonderjyske',
-        'OB Odense BK': 'Odense BK',
-        'Vejle Boldklub': 'Vejle',
-        'Bragantino-SP': 'Bragantino',
-        'Atletico Goianiense': 'Atlético Goianiense',
-        'Atletico Paranaense': 'Atlético Paranaense',
-        'Gremio': 'Grêmio',
-        'Newcastle Jets FC': 'Newcastle Jets',
-        'Western Sydney Wanderers': 'Western Sydney FC',
-        'Western United FC': 'Western United',
-        'Newcastle United': 'Newcastle',
-        'Wolverhampton Wanderers': 'Wolverhampton',
-        'Wellington Phoenix FC': 'Wellington Phoenix',
-        'Sao Paulo': 'São Paulo',
-        'Nancy': 'AS Nancy Lorraine',
-        'Pau FC': 'Pau',
-        'VfL Osnabrück': 'VfL Osnabruck',
-        'Vitesse Arnhem': 'Vitesse',
-        'Rio Ave FC': 'Rio Ave',
-        'Moreirense FC': 'Moreirense',
-        'Arsenal Tula': 'FC Arsenal Tula',
-
-    }
-    if team in translateTo538:
-        return translateTo538[team]
-    else:
-        return team
+            uniqueTeams = []
+            for index, n in minTable.iterrows():
+                if n['teams'] not in uniqueTeams:
+                    uniqueTeams.append(n['teams'])
+            cutTable = pd.DataFrame(columns=['teams', 'site', 'ev', 'outcome', 'win538', 'bookie%', 'date', 'devsFromMean', 'bookieMean','fixtureStdDev'])
+            for y in uniqueTeams:
+                rows = minTable.loc[(minTable['teams'] == y)]
+                rows2 = bookie_std_dev(rows)
+                # temp = rows2.nlargest(maxPerEvent, 'ev')
+                temp = cap_bookies_per_outcome(rows2, maxPerEvent)
+                cutTable = cutTable.append(temp)
+            evCut = cutTable[cutTable['ev'] >= minEv]
+            if evCut.empty:
+                print("No matches for" + x + " met minimum EV")
+                continue
+            if singleSheet:
+                evCut.to_excel(writer, sheet_name="sheet", startrow=curRow)
+                curRow = curRow + len(evCut) + 1
+            else:
+                evCut.to_excel(writer, sheet_name=x)
 
 
 def get_in_season_soccer():
@@ -263,7 +196,68 @@ def update_538():
     print("Done downloading from 538")
 
 
-many_sports('usSoccerEV.xlsx')
+def exclude_in_progress(df, daysAdd):
+    my_date = datetime.now()
+    cutTable = pd.DataFrame(columns=['teams', 'site', 'ev', 'outcome', 'win538', 'bookie%', 'date'])
+    utc = pytz.UTC
+    for index, n in df.iterrows():
+        matchDate = dateutil.parser.parse(n['date'])
+        currAware = utc.localize(my_date)
+        maxDate = currAware + timedelta(days=daysAdd)
+        if (matchDate > currAware) & (matchDate <= maxDate):
+            cutTable = cutTable.append(n)
+    return cutTable
+
+
+def bookie_std_dev(df):
+    temp = df.copy()
+    out1 = df.loc[(df['outcome'] == 1)]
+    out2 = df.loc[(df['outcome'] == 2)]
+    out0 = df.loc[(df['outcome'] == 0)]
+    stdDev1 = np.std(out1['bookie%'])
+    stdDev2 = np.std(out2['bookie%'])
+    stdDev0 = np.std(out0['bookie%'])
+    mean1 = np.mean(out1['bookie%'])
+    mean2 = np.mean(out2['bookie%'])
+    mean0 = np.mean(out0['bookie%'])
+    meanDict = {
+        1: mean1,
+        2: mean2,
+        0: mean0
+    }
+    stdDevDict = {
+        1: stdDev1,
+        2: stdDev2,
+        0: stdDev0
+    }
+    devMeanList = []
+    meanList = []
+    devList = []
+    for index, x in df.iterrows():
+        devMean = (x['bookie%'] - meanDict[x['outcome']]) / stdDevDict[x['outcome']]
+        devMean = np.abs(devMean)
+        devMeanList.append(devMean)
+        meanList.append(meanDict[x['outcome']])
+        devList.append(stdDevDict[x['outcome']])
+    temp['devsFromMean'] = devMeanList
+    temp['bookieMean'] = meanList
+    temp['fixtureStdDev'] = devList
+    return temp
+
+
+def cap_bookies_per_outcome(rows, cap):
+    rows1 = rows.loc[(rows['outcome'] == 1)]
+    rows2 = rows.loc[(rows['outcome'] == 2)]
+    rows0 = rows.loc[(rows['outcome'] == 0)]
+    temp1 = rows1.nlargest(cap, 'ev')
+    temp2 = rows2.nlargest(cap, 'ev')
+    temp0 = rows0.nlargest(cap, 'ev')
+    frames = [temp1, temp2, temp0]
+    result = pd.concat(frames)
+    return result
+
+
+many_sports('bestInTen1Sheet.xlsx', 5, 'uk', 1, 100, 7, True)
 
 
 
