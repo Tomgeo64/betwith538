@@ -257,7 +257,7 @@ def cap_bookies_per_outcome(rows, cap):
     return result
 
 
-many_sports('bestInTen1Sheet.xlsx', 5, 'uk', 1, 100, 7, True)
+many_sports('newest.xlsx', 5, 'uk', 1, 100, 7, True)
 
 
 
