@@ -121,8 +121,8 @@ def fix_538(team):
         'TSG 1899 Hoffenheim': 'TSG Hoffenheim',
         'SSC Napoli': 'Napoli',
         'Leverkusen': 'Bayer Leverkusen',
-        'Leicester City FC': 'Leicester City'
-
+        'Leicester City FC': 'Leicester City',
+        'Bournemouth': 'AFC Bournemouth'
     }
     if team in translateTo538:
         return translateTo538[team]

@@ -6,14 +6,18 @@ from urllib.request import urlopen
 import urllib
 import urllib.request
 from fix538 import fix_538
+from tools import *
 from datetime import datetime
 import dateutil.parser
 import pytz
 import numpy as np
 from datetime import datetime, timedelta
+import tools
+# from calculatePerformance import evaluate
 
 
 api_key = 'cc944894e170db9a6e45dde9536cf4c0'
+
 
 def make_odds_list(sport_key, region):
 
@@ -68,24 +72,6 @@ def make_odds_list(sport_key, region):
         return odds_list
 
 
-def get_538_odds(team1, team2, winner):
-    # Get odds given 2 teams, winner means outcome
-    df = pd.read_csv('spi_matches_latest.csv')
-    dfcut = df[['team1', 'team2', 'prob1', 'prob2', 'probtie']]
-    # Run dictionary on team names to make them readable.
-    newteam1 = fix_538(team1)
-    newteam2 = fix_538(team2)
-    # Grab only rows with correct teams.
-    rows = dfcut.loc[(dfcut['team1'] == newteam1) & (dfcut['team2'] == newteam2)]
-    if rows.empty:
-        # print("STILL EMPTY")  # this means somebodies name is broken and needs to be added to dictionary
-        return 0
-    if winner == 1:
-        return rows.iloc[0]['prob1']
-    if winner == 2:
-        return rows.iloc[0]['prob2']
-    if winner == 0:
-        return rows.iloc[0]['probtie']
 
 
 def do_sport(sport_key, region):
@@ -116,26 +102,15 @@ def do_sport(sport_key, region):
         if x[2] == -100:  # broken predictions
             print(x)
             count = 1
-    evdf = DataFrame(ev_list, columns=['teams', 'site', 'ev', 'outcome', 'win538', 'bookie%', 'date'])
-    result = evdf.sort_values(['ev'], ascending=False, ignore_index=True)  # Sort
+    evdf = DataFrame(ev_list, columns=['teams', 'site', 'EV', 'outcome', 'win538', 'bookie%', 'date'])
+    result = evdf.sort_values(['EV'], ascending=False, ignore_index=True)  # Sort
     return result
 
 
-def simple_xl(result):
-    result.to_excel('simple.xlsx')
-    print("printed to xl")
 
 
-def get_ev(win538, odds):
-    if odds is None:
-        return 0
-    if win538 is None:
-        return 0
-    # Basically % return on bet, or expected return for $100 bet. Same thing.
-    return (win538 * odds * 100) - 100
 
-
-def many_sports(filename, minEv, region, maxPerEvent, maxLeagues, days, singleSheet):
+def soccer_sheet(filename, minEv, region, maxPerEvent, maxLeagues, days, singleSheet):
     update_538()
     soccerList = get_in_season_soccer()
     maxCount = -1
@@ -152,14 +127,14 @@ def many_sports(filename, minEv, region, maxPerEvent, maxLeagues, days, singleSh
             for index, n in minTable.iterrows():
                 if n['teams'] not in uniqueTeams:
                     uniqueTeams.append(n['teams'])
-            cutTable = pd.DataFrame(columns=['teams', 'site', 'ev', 'outcome', 'win538', 'bookie%', 'date', 'devsFromMean', 'bookieMean','fixtureStdDev'])
+            cutTable = pd.DataFrame(columns=['teams', 'site', 'EV', 'outcome', 'win538', 'bookie%', 'date', 'devsFromMean', 'bookieMean','fixtureStdDev'])
             for y in uniqueTeams:
                 rows = minTable.loc[(minTable['teams'] == y)]
                 rows2 = bookie_std_dev(rows)
-                # temp = rows2.nlargest(maxPerEvent, 'ev')
+                # temp = rows2.nlargest(maxPerEvent, 'EV')
                 temp = cap_bookies_per_outcome(rows2, maxPerEvent)
                 cutTable = cutTable.append(temp)
-            evCut = cutTable[cutTable['ev'] >= minEv]
+            evCut = cutTable[cutTable['EV'] >= minEv]
             if evCut.empty:
                 print("No matches for" + x + " met minimum EV")
                 continue
@@ -191,14 +166,9 @@ def get_in_season_soccer():
     return soccer_list
 
 
-def update_538():
-    urllib.request.urlretrieve("https://projects.fivethirtyeight.com/soccer-api/club/spi_matches_latest.csv", "spi_matches_latest.csv")
-    print("Done downloading from 538")
-
-
 def exclude_in_progress(df, daysAdd):
     my_date = datetime.now()
-    cutTable = pd.DataFrame(columns=['teams', 'site', 'ev', 'outcome', 'win538', 'bookie%', 'date'])
+    cutTable = pd.DataFrame(columns=['teams', 'site', 'EV', 'outcome', 'win538', 'bookie%', 'date'])
     utc = pytz.UTC
     for index, n in df.iterrows():
         matchDate = dateutil.parser.parse(n['date'])
@@ -249,15 +219,13 @@ def cap_bookies_per_outcome(rows, cap):
     rows1 = rows.loc[(rows['outcome'] == 1)]
     rows2 = rows.loc[(rows['outcome'] == 2)]
     rows0 = rows.loc[(rows['outcome'] == 0)]
-    temp1 = rows1.nlargest(cap, 'ev')
-    temp2 = rows2.nlargest(cap, 'ev')
-    temp0 = rows0.nlargest(cap, 'ev')
+    temp1 = rows1.nlargest(cap, 'EV')
+    temp2 = rows2.nlargest(cap, 'EV')
+    temp0 = rows0.nlargest(cap, 'EV')
     frames = [temp1, temp2, temp0]
     result = pd.concat(frames)
     return result
 
-
-many_sports('newest.xlsx', 5, 'uk', 1, 100, 7, True)
-
-
-
+# def soccer_sheet(filename, minEv, region, maxPerEvent, maxLeagues, days, singleSheet):
+soccer_sheet('allData125.xlsx',-100, 'uk', 1, 100, 10, True)
+print('main$main$main')
